@@ -86,7 +86,8 @@ UTAVISTA (AI 歌詞分析タブ) は utalign を子プロセスとして起動�
 
 ```bash
 utalign doctor --json
-# {"name":"utalign","version":"0.3.0","home":...,"model":...,"modelDownloaded":true,"device":"mps",...}
+# {"name":"utalign","version":"0.3.0","home":...,"model":...,"modelDownloaded":true,"device":"mps",
+#  "macos":"14.6.1","mpsConvLimited":true,"torch":"2.14.0",...}
 
 utalign utavista-align --audio vocal.mp3 --lyrics lyrics.txt --midi vocal.mid \
   --out-json <出力 JSON> --work <キャッシュ置き場> [--strip-spaces] [--no-ruby] [--progress-json]
@@ -105,6 +106,22 @@ utalign utavista-align --audio vocal.mp3 --lyrics lyrics.txt --midi vocal.mid \
 
 UTAVISTA 側は `utalign` 実行ファイルを「設定の上書きパス → 環境変数 → UTAVISTA 管理のインストール → ログインシェルの
 `command -v utalign` → 既知パス」の順に探します。venv 内の `bin/utalign` を指定すれば venv の有効化は不要です。
+
+`doctor --json` の `macos` は macOS のバージョン (macOS 以外は null)、`mpsConvLimited` は「その macOS の MPS に
+畳み込み出力 65,536 上限があるか (macOS 15.1 未満で true)」です。utalign 自体はこの上限に収まる窓幅で推論するので
+true でも MPS で動きますが、UTAVISTA 側の案内表示に使えます。
+
+### Apple Silicon / macOS 15.1 未満での注意
+
+macOS 15.1 未満の PyTorch MPS は畳み込み出力の各次元が 65,536 を超えると
+`NotImplementedError: Output channels > 65536 not supported at the MPS device.` を投げます。utalign は音声を
+16 秒窓 + 前後 2 秒 (合計 20 秒 = 320,000 サンプル → HuBERT 初段で 63,999 フレーム) ずつモデルへ入れるので、
+この上限内で全 macOS の MPS が使えます。それでも GPU/MPS で推論できなかった場合は自動的に CPU へ切り替えて続行し、
+ログと結果の `meta.warnings` / `meta.device_fallback` に理由を残します。最初から CPU で動かすには:
+
+```bash
+utalign config --set device=cpu
+```
 
 ### UTAVISTA からの自動インストール
 

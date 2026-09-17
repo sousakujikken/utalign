@@ -2,7 +2,7 @@
 
 流れ: モーラ列 --(mora_tokens)--> CTC ユニット列 (lyrics.build_ctc_units) ; 音声 --(compute_emissions)--> [T, V]
       --(align)--> ユニット毎の (start, end, score)。
-20 秒窓 + 2 秒オーバーラップの emission 計算とキャッシュは共通実装 (chunked_emissions)。
+16 秒窓 + 前後 2 秒オーバーラップの emission 計算とキャッシュは共通実装 (chunked_emissions)。
 """
 from __future__ import annotations
 
@@ -19,8 +19,13 @@ if TYPE_CHECKING:
 
 SR = 16000
 HOP = 320            # wav2vec2 / HuBERT のフレーム間隔 (20ms)
-CHUNK_SEC = 20.0
+# 1 回にモデルへ入れる窓。macOS 15.1 未満の MPS では畳み込み出力の各次元が 65,536 以下に制限され
+# (config.MPS_CONV_MAX_OUTPUT)、HuBERT の最初の Conv1d (kernel 10, stride 5) の出力フレーム数がこれを超えると
+# "Output channels > 65536 not supported at the MPS device" で落ちる。セグメント (窓 + 前後オーバーラップ) は
+# MPS_MAX_SEG_SAMPLES (約 20.48 秒) 以下に保つこと。16 + 2×2 = 20 秒 = 320,000 サンプル → 63,999 フレームで収まる。
+CHUNK_SEC = 16.0
 OVERLAP_SEC = 2.0
+MPS_MAX_SEG_SAMPLES = (65536 - 1) * 5 + 10   # = 327,685
 
 
 @dataclass
@@ -42,16 +47,19 @@ def num_frames(n_samples: int) -> int:
 
 
 def chunked_emissions(wav: np.ndarray, run_chunk: Callable[[np.ndarray], np.ndarray],
-                      cache_key: str, cache_dir: Optional[Path]) -> np.ndarray:
-    """run_chunk(セグメント波形) -> log-prob [t, V] を 20 秒窓で呼び、全曲の [T, V] に貼り合わせる."""
-    key = hashlib.sha1(wav.tobytes() + cache_key.encode()).hexdigest()[:16]
+                      cache_key: str, cache_dir: Optional[Path],
+                      chunk_sec: float = CHUNK_SEC, overlap_sec: float = OVERLAP_SEC) -> np.ndarray:
+    """run_chunk(セグメント波形) -> log-prob [t, V] を chunk_sec の窓 (前後 overlap_sec 付き) で呼び、
+    全曲の [T, V] に貼り合わせる。窓幅を変えると emission が僅かに変わるのでキャッシュキーに窓設定を含める."""
+    chunk = int(chunk_sec * SR) // HOP * HOP
+    ov = int(overlap_sec * SR) // HOP * HOP
+    full_key = f"{cache_key}|chunk={chunk}|ov={ov}"
+    key = hashlib.sha1(wav.tobytes() + full_key.encode()).hexdigest()[:16]
     cache = (cache_dir / f"emission_{key}.npy") if cache_dir else None
     if cache and cache.exists():
         return np.load(cache)
     n = len(wav)
     T = num_frames(n)
-    chunk = int(CHUNK_SEC * SR) // HOP * HOP
-    ov = int(OVERLAP_SEC * SR) // HOP * HOP
     out = None
     pos = 0
     while pos < n:
@@ -80,6 +88,9 @@ class Aligner(ABC):
     model_id: str = ""
     vocab_kind: str = ""        # romaji | phoneme | hira | kata
     supports_star: bool = False
+    device: str = "cpu"
+    device_fallback: Optional[str] = None   # 実行中に CPU へ退避したときの理由 (pipeline が警告に載せる)
+    log: Callable[[str], None] = staticmethod(print)
 
     @abstractmethod
     def mora_tokens(self, mora: "Mora", next_mora: Optional["Mora"]) -> list[str]:

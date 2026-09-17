@@ -9,9 +9,10 @@ from __future__ import annotations
 
 import json
 import os
+import platform
 import sys
 from pathlib import Path
-from typing import Any
+from typing import Any, Optional
 
 DEFAULT_MODEL = "prj-beatrice/japanese-hubert-base-phoneme-ctc-v4"
 APP_NAME = "utalign"
@@ -105,3 +106,27 @@ def pick_device(pref: str = "auto") -> str:
     except Exception:
         pass
     return "cpu"
+
+
+# PyTorch の MPS 畳み込み (aten/native/mps/operations/Convolution.mm) は macOS 15.1 未満のとき
+# 出力テンソルの全次元 (チャネルだけでなく時間軸も) が 65,536 以下でないと NotImplementedError を投げる。
+MPS_CONV_MAX_OUTPUT = 65536
+MPS_CONV_LIMIT_FIXED_IN = (15, 1)
+
+
+def macos_version() -> Optional[tuple[int, ...]]:
+    """macOS のバージョン (例 (14, 6, 1))。macOS 以外や取得できないときは None."""
+    if sys.platform != "darwin":
+        return None
+    raw = platform.mac_ver()[0]
+    try:
+        return tuple(int(x) for x in raw.split(".")) if raw else None
+    except ValueError:
+        return None
+
+
+def mps_conv_limited(ver: Optional[tuple[int, ...]] = None) -> bool:
+    """この macOS の MPS に畳み込み出力 65,536 上限があるか (macOS < 15.1 で True)."""
+    if ver is None:
+        ver = macos_version()
+    return ver is not None and ver < MPS_CONV_LIMIT_FIXED_IN
