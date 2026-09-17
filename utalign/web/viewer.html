@@ -1,0 +1,25 @@
+<!doctype html>
+<html lang="ja">
+<head>
+<meta charset="utf-8">
+<title>utalign viewer</title>
+<link rel="stylesheet" href="style.css">
+<style>
+  body { display: flex; flex-direction: column; }
+  .ut-topbar { flex-shrink: 0; }
+  #root { flex: 1; min-height: 0; }
+</style>
+</head>
+<body>
+<div class="ut-topbar"><span class="ut-brand">utalign</span><span class="ut-badge">viewer</span><span class="ut-project-name" id="meta"></span></div>
+<div id="root"></div>
+<script src="viewer.js"></script>
+<script>
+  createViewer(document.getElementById('root'), { base: './' }).then((v) => {
+    if (!v) return;
+    const m = v.meta;
+    document.getElementById('meta').textContent = `${m.model || ''}  offset=${(m.offset * 1000).toFixed(0)}ms  残差 中央値=${(m.residual_median * 1000).toFixed(0)}ms p90=${(m.residual_p90 * 1000).toFixed(0)}ms >150ms=${(m.residual_over150 * 100).toFixed(1)}%`;
+  });
+</script>
+</body>
+</html>

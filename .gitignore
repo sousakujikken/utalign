@@ -1,0 +1,29 @@
+# 仮想環境・キャッシュ
+venv/
+venv.nosync/
+.venv/
+__pycache__/
+*.pyc
+.claude/
+.DS_Store
+
+# 解析出力・作業キャッシュ
+out/
+out_*/
+work/
+work_*/
+
+# 楽曲素材 (権利物のため管理対象外)
+*.mp3
+*.wav
+*.mid
+*.midi
+*歌詞*.txt
+オーバーヒートな季節歌詞素材/
+
+# アプリ用ローカルデータ (テスト用ホーム)
+.local-test-home/
+*.egg-info/
+build/
+dist/
+.pytest_cache/
