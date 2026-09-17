@@ -86,7 +86,7 @@ UTAVISTA (AI 歌詞分析タブ) は utalign を子プロセスとして起動�
 
 ```bash
 utalign doctor --json
-# {"name":"utalign","version":"0.3.0","home":...,"model":...,"modelDownloaded":true,"device":"mps",
+# {"name":"utalign","version":"0.3.1","home":...,"model":...,"modelDownloaded":true,"device":"mps",
 #  "macos":"14.6.1","mpsConvLimited":true,"torch":"2.14.0",...}
 
 utalign utavista-align --audio vocal.mp3 --lyrics lyrics.txt --midi vocal.mid \
