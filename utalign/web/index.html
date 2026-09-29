@@ -1,0 +1,44 @@
+<!doctype html>
+<html lang="ja">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>utalign</title>
+<link rel="stylesheet" href="/static/style.css">
+</head>
+<body>
+<div id="app" class="ut-shell">
+  <div class="ut-topbar">
+    <span class="ut-brand">utalign</span>
+    <span class="ut-badge" id="version">v0.2</span>
+    <span class="ut-project-name" id="top-project"></span>
+    <div class="ut-mode-tabs" id="mode-tabs">
+      <button class="ut-mode-tab" data-mode="input" data-active="true">入力</button>
+      <button class="ut-mode-tab" data-mode="result">結果</button>
+      <button class="ut-mode-tab" data-mode="export">書き出し</button>
+      <button class="ut-mode-tab" data-mode="settings">設定</button>
+    </div>
+    <span class="spacer"></span>
+    <span class="ut-badge" id="top-status"></span>
+    <button class="ut-btn-sm ut-btn-accent" id="top-run" title="現在のプロジェクトを解析">解析を実行</button>
+  </div>
+  <aside class="ut-left">
+    <div class="ut-left-head">
+      <span class="ut-section-title">プロジェクト</span>
+      <span class="spacer"></span>
+      <button class="ut-btn-sm" id="proj-new">＋ 新規</button>
+    </div>
+    <div class="ut-left-body" id="proj-list"></div>
+  </aside>
+  <main class="ut-center">
+    <section class="ut-page" id="page-input"></section>
+    <section class="ut-page ut-page--viewer" id="page-result" hidden></section>
+    <section class="ut-page" id="page-export" hidden></section>
+    <section class="ut-page" id="page-settings" hidden></section>
+  </main>
+</div>
+<div class="toasts" id="toasts"></div>
+<script src="/static/viewer.js"></script>
+<script src="/static/app.js"></script>
+</body>
+</html>
