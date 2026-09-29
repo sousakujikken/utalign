@@ -4,12 +4,18 @@
 UTAVISTA の歌詞タイミング JSON (`lyrics-timing/1.0`) を出力します。
 UTAVISTA から子プロセスとして呼ばれる CLI、ブラウザで動くアプリ (UTAVISTA v2 と同じデザイントークン)、単体の CLI があります。
 
+**v0.4.1**: eSpeak NGへの依存を除去しました。CMUdict＋g2pE、pypinyin、Epitranでローカル音素変換を行います。
+
+**v0.4.0**: 日本語・英語・ドイツ語・フランス語・中国語（普通話）・韓国語・スペイン語・イタリア語が混在する歌詞の
+**単語内の音節タイミング**に対応しました。通常の `align` / `utavista-align` / Web画面から利用できます。
+使い方・JSON形式・現在の検証範囲は [多言語音節解析](docs/multilingual.md) を参照してください。
+
 > **位置づけ**: utalign は歌詞アニメーションツール UTAVISTA の歌詞タイミング解析エンジンです。UTAVISTA は
 > 「utalign をインストール」で本リポジトリの Release にある wheel を自動的に導入します (下記「UTAVISTA からの利用」)。
 > 単体でも使えますが、単体利用のサポートは限定的です。処理はすべてローカル (macOS、Apple Silicon 推奨) で行われ、
 > 音声・歌詞・MIDI をネットワークへ送信しません。ライセンスは MIT、既定モデルは Apache-2.0 です (「ライセンス」参照)。
 
-## 仕組み (概要)
+## 仕組み (日本語モーラ解析)
 
 ```
 歌詞 txt ─→ 正規化・読み付与 (fugashi/unidic) ─→ モーラ列 (各モーラ → 元の文字インデックス)
@@ -86,7 +92,7 @@ UTAVISTA (AI 歌詞分析タブ) は utalign を子プロセスとして起動�
 
 ```bash
 utalign doctor --json
-# {"name":"utalign","version":"0.3.1","home":...,"model":...,"modelDownloaded":true,"device":"mps",
+# {"name":"utalign","version":"0.4.1","home":...,"model":...,"modelDownloaded":true,"device":"mps",
 #  "macos":"14.6.1","mpsConvLimited":true,"torch":"2.14.0",...}
 
 utalign utavista-align --audio vocal.mp3 --lyrics lyrics.txt --midi vocal.mid \
@@ -218,6 +224,7 @@ UTAVISTA 本体での検証 (utavista2-refactor のリポジトリで実行):
 ## ライセンス
 
 - utalign 本体: [MIT](LICENSE)
+- 多言語G2P: Epitran・pypinyin（MIT）、CMUdict（BSD-style）、g2pE（Apache-2.0）。eSpeak NGは使用しません。辞書・重みの出典とライセンス全文は [同梱リソース](utalign/multilingual/resources/README.md) を参照。
 - 既定モデル `prj-beatrice/japanese-hubert-base-phoneme-ctc-v4`: Apache-2.0 (初回に Hugging Face Hub から取得、再配布はしない)
 - 依存パッケージ (torch、transformers、librosa、fugashi ほか): [THIRD_PARTY_NOTICES.md](THIRD_PARTY_NOTICES.md) に `uv.lock` の固定版から生成した一覧を置いています。
   wheel 自体は依存を同梱せず、利用者の環境で PyPI から取得されます。

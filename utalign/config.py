@@ -46,6 +46,8 @@ DEFAULTS: dict[str, Any] = {
     "device": "auto",                  # auto | cpu | mps | cuda
     "port": 8791,
     "min_rest": 0.2,                   # フレーズ分割の休符長 (秒)
+    "alignment_mode": "auto",         # auto | multilingual | japanese
+    "languages": "ja,en,de,fr,zh,ko,es,it",
     "utavista_dir": "",                # utavista2 のリポジトリ (検証器を使う場合)
     "export_ruby": True,
     "export_strip_spaces": False,

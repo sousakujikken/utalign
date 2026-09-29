@@ -2,10 +2,14 @@
 
 utalign は下記のパッケージに依存します。この一覧は `uv.lock` で固定した版を `uv sync` した環境から
 `tools/generate_third_party_notices.py` で生成したものです。各パッケージはそれぞれのライセンスに従います。
-utalign の wheel はこれらを同梱せず、インストール時に利用者の環境で PyPI から取得されます。
+依存パッケージはインストール時に PyPI から取得されます。英語G2Pの辞書・モデルは下記のとおりwheelに同梱します。
 
 既定モデル `prj-beatrice/japanese-hubert-base-phoneme-ctc-v4` (Apache-2.0) は初回実行時に Hugging Face Hub から
 取得され、utalign は再配布しません。
+多言語G2Pは Epitran (MIT)、pypinyin (MIT)、CMUdict (BSD-style)、g2pE (Apache-2.0) を利用します。
+eSpeak NG・espeakng-loader は必要ありません。marisa-trie の libmarisa は選択可能な BSD-2-Clause を利用します。
+同梱する CMUdict と g2pE の重み・改変したNumPy推論の出典、固定revision、SHA-256、ライセンス全文は
+`utalign/multilingual/resources/README.md` と同ディレクトリの manifest.json / LICENSE ファイルを参照してください。
 
 手動で編集しないでください。
 
@@ -17,6 +21,8 @@ utalign の wheel はこれらを同梱せず、インストール時に利用�
 - click@8.5.0 — BSD-3-Clause — https://github.com/pallets/click/
 - cloudpickle@3.1.2 — BSD License — https://github.com/cloudpipe/cloudpickle
 - decorator@5.3.1 — BSD-2-Clause
+- editdistance@0.8.1 — MIT — https://github.com/roy-ht/editdistance
+- epitran@1.35.2 — MIT-Modern-Variant — https://github.com/dmort27/epitran
 - filelock@4.0.0 — MIT — https://github.com/tox-dev/py-filelock
 - fsspec@2026.7.0 — BSD-3-Clause — https://github.com/fsspec/filesystem_spec
 - fugashi@1.5.2 — MIT AND BSD-3-Clause — https://github.com/polm/fugashi
@@ -27,28 +33,36 @@ utalign の wheel はこれらを同梱せず、インストール時に利用�
 - huggingface_hub@1.32.0 — Apache Software License — https://github.com/huggingface/huggingface_hub
 - idna@3.19 — BSD-3-Clause — https://github.com/kjd/idna
 - iniconfig@2.3.0 — MIT — https://github.com/pytest-dev/iniconfig
+- jamo@0.4.1 — Apache Software License — https://github.com/jdongian/python-jamo
 - Jinja2@3.1.6 — BSD License — https://github.com/pallets/jinja/
 - joblib@1.6.0 — BSD-3-Clause — https://joblib.readthedocs.io
 - lazy-loader@0.5 — BSD-3-Clause — https://github.com/scientific-python/lazy-loader
 - librosa@1.0.0 — ISC License (ISCL) — https://github.com/librosa/librosa
+- lingua-language-detector@2.2.0 — Apache Software License — https://github.com/pemistahl/lingua-py
 - llvmlite@0.49.0 — BSD-2-Clause AND Apache-2.0 WITH LLVM-exception — https://github.com/numba/llvmlite
+- marisa-trie@1.4.1 — MIT AND (BSD-2-Clause OR LGPL-2.1-or-later) — https://github.com/pytries/marisa-trie
 - markdown-it-py@4.2.0 — MIT License — https://github.com/executablebooks/markdown-it-py
 - MarkupSafe@3.0.3 — BSD-3-Clause — https://github.com/pallets/markupsafe/
 - mdurl@0.1.2 — MIT License — https://github.com/executablebooks/mdurl
 - mido@1.3.3 — MIT License — https://github.com/mido/mido
 - mpmath@1.3.0 — BSD License — https://github.com/fredrik-johansson/mpmath
 - msgpack@1.2.2 — Apache-2.0 — https://msgpack.org/
+- munkres@1.1.4 — Apache Software License — https://software.clapper.org/munkres/
 - narwhals@2.26.0 — MIT — https://github.com/narwhals-dev/narwhals
 - networkx@3.6.1 — BSD-3-Clause — https://networkx.org/
 - numba@0.67.0 — BSD License — https://numba.pydata.org
 - numpy@2.5.3 — BSD-3-Clause AND 0BSD AND MIT AND Zlib AND CC0-1.0 — https://numpy.org
 - packaging@26.3 — Apache-2.0 OR BSD-2-Clause — https://github.com/pypa/packaging
+- pandas@3.0.6 — BSD License — https://pandas.pydata.org
+- panphon@0.22.2 — MIT — https://github.com/dmort27/panphon
 - platformdirs@4.11.9 — MIT — https://github.com/tox-dev/platformdirs
 - pluggy@1.6.0 — MIT License
 - pooch@1.9.0 — BSD-3-Clause — https://github.com/fatiando/pooch
 - pycparser@3.0 — BSD-3-Clause — https://github.com/eliben/pycparser
 - Pygments@2.21.0 — BSD-2-Clause — https://pygments.org
+- pypinyin@0.55.0 — MIT License — https://github.com/mozillazg/python-pinyin
 - pytest@9.1.1 — MIT — https://docs.pytest.org/en/latest/
+- python-dateutil@2.9.0.post0 — BSD License / Apache Software License — https://github.com/dateutil/dateutil
 - PyYAML@6.0.3 — MIT License — https://github.com/yaml/pyyaml
 - regex@2026.9.10 — Apache-2.0 AND CNRI-Python — https://github.com/mrabarnett/mrab-regex
 - requests@2.34.2 — Apache Software License — https://github.com/psf/requests
@@ -58,6 +72,7 @@ utalign の wheel はこれらを同梱せず、インストール時に利用�
 - scipy@1.18.1 — BSD License — https://scipy.org/
 - setuptools@84.0.0 — MIT — https://github.com/pypa/setuptools
 - shellingham@1.5.4 — ISC License (ISCL) — https://github.com/sarugaku/shellingham
+- six@1.17.0 — MIT License — https://github.com/benjaminp/six
 - soundfile@0.14.0 — BSD License — https://github.com/bastibe/python-soundfile
 - soxr@1.1.0 — LGPL-2.1-or-later — https://github.com/dofuuz/python-soxr
 - sympy@1.14.0 — BSD License — https://github.com/sympy/sympy
@@ -69,5 +84,6 @@ utalign の wheel はこれらを同梱せず、インストール時に利用�
 - transformers@5.17.0 — Apache 2.0 License — https://github.com/huggingface/transformers
 - typer@0.27.2 — MIT — https://github.com/fastapi/typer
 - typing_extensions@4.16.0 — PSF-2.0 — https://github.com/python/typing_extensions
+- unicodecsv@0.14.1 — BSD License — https://github.com/jdunck/python-unicodecsv
 - unidic-lite@1.0.8 — MIT License — https://github.com/polm/unidic-lite
 - urllib3@2.8.0 — MIT

@@ -23,7 +23,7 @@ import numpy as np
 from . import config as _cfg
 
 WEB_DIR = Path(__file__).resolve().parent / "web"
-VIEWER_FILES = ("viewer.html", "viewer.js", "style.css")
+VIEWER_FILES = ("viewer.html", "viewer.js", "syllable-viewer.js", "style.css")
 
 Progress = Callable[[dict[str, Any]], None]
 
@@ -41,6 +41,12 @@ class AlignOptions:
     keep_drums: bool = False
     readings: Optional[Path] = None
     models_dir: Optional[Path] = None
+    alignment_mode: str = "auto"
+    languages: tuple[str, ...] = ("ja", "en", "de", "fr", "zh", "ko", "es", "it")
+    language_hints: list[dict[str, Any]] = field(default_factory=list)
+    proxy_readings: list[dict[str, Any]] = field(default_factory=list)
+    midi_offset: Optional[float] = None
+    search_band: float = 10.0
     # 再生用 WAV / クリック音 / 波形ピーク / ビューアを out/ に書くか (GUI 用。UTAVISTA 連携では不要)
     write_playback: bool = True
     extra: dict[str, Any] = field(default_factory=dict)
@@ -62,6 +68,11 @@ def run_align(audio: Path, lyrics: Path, midi: Path, out: Path, work: Path,
 
     t0 = time.time()
 
+    from .multilingual.pipeline import use_multilingual, run_multilingual
+    text = Path(lyrics).read_bytes().decode("utf-8-sig")
+    if use_multilingual(text, opt):
+        return run_multilingual(audio, lyrics, midi, out, work, opt, log, progress)
+
     def stage(name: str) -> None:
         progress({"event": "stage", "stage": name, "elapsed": round(time.time() - t0, 2)})
 
@@ -72,7 +83,6 @@ def run_align(audio: Path, lyrics: Path, midi: Path, out: Path, work: Path,
     aligner.log = log
     log(f"[aligner] {aligner.describe()} device={aligner.device}")
     stage("lyrics")
-    text = Path(lyrics).read_text(encoding="utf-8")
     lyr = parse_lyrics(text, opt.readings if opt.readings and Path(opt.readings).exists() else None)
     lyr.units = build_ctc_units(lyr.moras, aligner.mora_tokens)
     log(f"[lyrics] {len(lyr.moras)} moras, {len(lyr.units)} ctc units, {len(lyr.unsung_chars)} unsung chars")
@@ -97,7 +107,7 @@ def run_align(audio: Path, lyrics: Path, midi: Path, out: Path, work: Path,
         ctc_start[u.mora_ids[0]] = sp.start; ctc_score[u.mora_ids[0]] = sp.score
     log(f"[ctc]    aligned {int((~np.isnan(ctc_start)).sum())} moras with ctc onsets ({time.time() - t0:.1f}s)")
     stage("match")
-    off0 = xcorr_offset(wav, notes)
+    off0 = opt.midi_offset if opt.midi_offset is not None else xcorr_offset(wav, notes)
     mr = run_match(lyr.moras, ctc_start, ctc_score, notes, off0, wav)
     log(f"[match]  xcorr offset={off0:+.3f}s -> refined offset={mr.offset:+.3f}s "
         f"(diff {abs(off0 - mr.offset) * 1000:.0f}ms), drift slope={mr.drift_slope:.5f}")
@@ -165,7 +175,8 @@ def run_export(result_path: Path, out_path: Path, ruby: bool = True, strip_space
 
 UTAVISTA_META_KEYS = ("generated", "model", "vocab", "device", "device_fallback", "offset",
                       "residual_median", "residual_p90", "residual_over150",
-                      "n_mora_skipped", "n_note_skipped", "repeated_lines", "repeat_mismatches", "warnings", "elapsed")
+                      "n_mora_skipped", "n_note_skipped", "repeated_lines", "repeat_mismatches", "warnings", "elapsed",
+                      "alignment_mode", "timing_unit", "n_syllables", "low_support")
 
 
 def run_utavista(audio: Path, lyrics: Path, midi: Path, out_json: Path, work: Path,

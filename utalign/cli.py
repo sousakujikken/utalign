@@ -22,11 +22,16 @@ from . import config as _cfg
 def _align_options(a: argparse.Namespace, cfg: dict[str, Any], write_playback: bool = True):
     from .pipeline import AlignOptions
     readings = Path(a.readings) if a.readings else None
+    def spans(path):
+        return json.loads(Path(path).read_text(encoding="utf-8"))["spans"] if path else []
     return AlignOptions(model=a.model or cfg["model"], device=a.device or cfg["device"],
                         star=a.star, min_rest=a.min_rest,
                         midi_tracks=[int(x) for x in a.midi_tracks.split(",")] if a.midi_tracks else None,
                         keep_drums=a.keep_drums, readings=readings, models_dir=_cfg.models_dir(cfg),
-                        write_playback=write_playback)
+                        write_playback=write_playback, alignment_mode=a.alignment_mode or cfg.get("alignment_mode", "auto"),
+                        languages=tuple(x.strip() for x in (a.languages or cfg.get("languages", "ja,en,de,fr,zh,ko,es,it")).split(",")),
+                        language_hints=spans(a.language_hints), proxy_readings=spans(a.proxy_readings),
+                        midi_offset=a.midi_offset, search_band=a.search_band)
 
 
 def _add_align_args(p: argparse.ArgumentParser) -> None:
@@ -38,6 +43,12 @@ def _add_align_args(p: argparse.ArgumentParser) -> None:
     p.add_argument("--min-rest", type=float, default=0.2)
     p.add_argument("--midi-tracks", default=None, help="使う MIDI トラック番号 (カンマ区切り、省略で全部)")
     p.add_argument("--keep-drums", action="store_true", help="drum 系トラック / ch10 を除外しない")
+    p.add_argument("--alignment-mode", choices=["auto", "multilingual", "japanese"], help="自動切替 / 多言語音節 / 日本語モーラ")
+    p.add_argument("--languages", help="歌詞に使う言語 (例: ja,en,de)。既定は8言語")
+    p.add_argument("--language-hints", help='区間の言語を指定するJSON {"spans":[{"text":"Bonjour","language":"fr"}]}')
+    p.add_argument("--proxy-readings", help='原語の音節ごとの近似読みJSON (詳細は docs/multilingual.md)')
+    p.add_argument("--midi-offset", type=float, help="音声時刻 − MIDI時刻 (秒)。省略時は自動推定")
+    p.add_argument("--search-band", type=float, default=10., help="多言語MIDI割当の探索範囲 (秒)")
 
 
 def cmd_align(a: argparse.Namespace) -> None:

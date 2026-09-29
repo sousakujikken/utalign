@@ -1,0 +1,34 @@
+[
+  {
+    "repository": "cmusphinx/cmudict",
+    "revision": "74790861f652b15e4ac49015a90074ad62a27690",
+    "url": "https://raw.githubusercontent.com/cmusphinx/cmudict/74790861f652b15e4ac49015a90074ad62a27690/cmudict.dict",
+    "file": "cmudict-cmudict.dict",
+    "sha256": "81917843c7f44ce2b094ac63873c2c7a4cf802040792c455ba3ca406891c3d22",
+    "bytes": 3618488
+  },
+  {
+    "repository": "cmusphinx/cmudict",
+    "revision": "74790861f652b15e4ac49015a90074ad62a27690",
+    "url": "https://raw.githubusercontent.com/cmusphinx/cmudict/74790861f652b15e4ac49015a90074ad62a27690/LICENSE",
+    "file": "cmudict-LICENSE",
+    "sha256": "bd4ce8e44170a5f9f481310ca85c51de3c4f851a65e679b40e603b143bd3542a",
+    "bytes": 1754
+  },
+  {
+    "repository": "Kyubyong/g2p",
+    "revision": "c6439c274c42b9724a7fee1dc07ca6a4c68a0538",
+    "url": "https://raw.githubusercontent.com/Kyubyong/g2p/c6439c274c42b9724a7fee1dc07ca6a4c68a0538/g2p_en/checkpoint20.npz",
+    "file": "g2p-checkpoint20.npz",
+    "sha256": "b8af35e4596d8dd5836dfd3fe9b2ba4f97b9c311efe8879544cbcfcbd566d8c6",
+    "bytes": 3342298
+  },
+  {
+    "repository": "Kyubyong/g2p",
+    "revision": "c6439c274c42b9724a7fee1dc07ca6a4c68a0538",
+    "url": "https://raw.githubusercontent.com/Kyubyong/g2p/c6439c274c42b9724a7fee1dc07ca6a4c68a0538/LICENSE.txt",
+    "file": "g2p-LICENSE.txt",
+    "sha256": "b40930bbcf80744c86c46a12bc9da056641d722716c378f5659b9e555ef833e1",
+    "bytes": 11357
+  }
+]

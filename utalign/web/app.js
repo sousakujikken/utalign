@@ -243,6 +243,18 @@
           h('label', { class: 'row' }, h('span', {}, 'MIDI トラック'), h('input', { type: 'text', class: 'num-w', placeholder: '全部', value: o.midi_tracks || '', onchange: (e) => opt({ midi_tracks: e.target.value }) }), h('span', { class: 'hint', style: 'margin:0' }, 'カンマ区切りの番号、空欄で全トラック')),
           h('label', { class: 'row' }, h('input', { type: 'checkbox', checked: !!o.keep_drums, onchange: (e) => opt({ keep_drums: e.target.checked }) }), h('span', {}, 'ドラム系トラック / ch10 を除外しない'))))));
     function opt(patch) { S.project.options = { ...S.project.options, ...patch }; saveProject({ options: patch }); }
+    const languageNames = { ja: '日本語', en: '英語', de: 'ドイツ語', fr: 'フランス語', zh: '中国語', ko: '韓国語', es: 'スペイン語', it: 'イタリア語' };
+    const selectedLanguages = new Set((o.languages || 'ja,en,de,fr,zh,ko,es,it').split(','));
+    page.append(h('div', { class: 'card' }, h('div', { class: 'card-title' }, '歌詞の言語と音節'),
+      h('label', { class: 'row' }, h('span', {}, '解析方式'), h('select', { 'aria-label': '解析方式', onchange: (e) => opt({ alignment_mode: e.target.value }) },
+        ...[['auto', '自動（混在歌詞は音節解析）'], ['multilingual', '多言語・音節解析'], ['japanese', '日本語・モーラ解析']].map(([value, label]) => h('option', { value, selected: (o.alignment_mode || 'auto') === value }, label)))),
+      h('div', { class: 'hint' }, '曲に使う言語を選ぶと、短い単語の判定が安定します。中国語は普通話に対応します。'),
+      h('div', { class: 'actions' }, ...Object.entries(languageNames).map(([code, name]) => h('label', {}, h('input', { type: 'checkbox', checked: selectedLanguages.has(code), onchange: (e) => { if (e.target.checked) selectedLanguages.add(code); else selectedLanguages.delete(code); opt({ languages: [...selectedLanguages].join(',') }); } }), name))),
+      h('label', { class: 'row' }, h('span', {}, 'MIDIオフセット'), h('input', { type: 'number', 'aria-label': 'MIDIオフセット', step: 0.01, placeholder: '自動', value: o.midi_offset ?? '', onchange: (e) => opt({ midi_offset: e.target.value }) }), h('span', { class: 'hint' }, '音声時刻 − MIDI時刻（秒）')),
+      h('label', {}, '言語ヒント（任意）', h('textarea', { rows: 2, 'aria-label': '言語ヒント', placeholder: 'fr: Bonjour\nzh: 你好', oninput: (e) => saveProject({ language_hints: e.target.value }) }, p.language_hints || '')),
+      h('div', { class: 'hint' }, '1行に「言語コード: 原文」。同じ原文のすべての出現に適用します。'),
+      h('label', {}, '歌唱の近似読み（任意）', h('textarea', { rows: 3, 'aria-label': '歌唱の近似読み', placeholder: 'knock out = ノッ / キャウ', oninput: (e) => saveProject({ proxy_readings: e.target.value }) }, p.proxy_readings || '')),
+      h('div', { class: 'hint' }, '1行に「原文 = 読み」。単語間は /、単語内の音節は | で区切ります。キャウのような読みも元の1音節として扱います。')));
     // ---- 読み上書き
     page.append(h('div', { class: 'card' }, h('div', { class: 'card-title' }, '読みの上書き', h('span', { class: 'hint', style: 'margin:0 0 0 8px;font-weight:400' }, '1 行 1 語: 「表層 読み」 例: 言葉 こと|ば   (| で文字ごとに区切る)')),
       h('textarea', { rows: 4, placeholder: '景色 け|しき\n言葉 こと|ば', oninput: (e) => saveProject({ readings: e.target.value }) }, p.readings || '')));
@@ -252,7 +264,7 @@
     const log = h('div', { class: 'log', id: 'align-log' }, S.running[p.slug] ? S.running[p.slug].join('\n') : (p.last_run ? `前回: ${p.last_run.generated}  ${p.last_run.model}  残差 中央値 ${fmtMs(p.last_run.residual_median)} p90 ${fmtMs(p.last_run.residual_p90)}` : ''));
     page.append(h('div', { class: 'card' }, h('div', { class: 'card-title' }, '解析', h('span', { class: 'spacer' }), ready ? null : h('span', { class: 'chip warn' }, '入力ファイルが揃っていません'), runBtn), log));
     page.append(h('div', { class: 'card' }, h('div', { class: 'card-title' }, '仕組み'),
-      h('div', { class: 'hint', style: 'line-height:1.6' }, '歌詞 → 読み付与・モーラ分割 (fugashi/unidic) → 音声の CTC 強制アライメントでモーラ開始時刻を検出 → MIDI ノートと DP で突合 (1 ノート複数モーラ・メリスマ・skip) → フレーズ先頭は MIDI、フレーズ内は CTC を MIDI±100ms でクランプして時刻確定。結果は「結果」タブで波形・ピアノロール・カラオケ表示で確認し、「書き出し」で UTAVISTA 用 JSON にします。')));
+      h('div', { class: 'hint', style: 'line-height:1.6' }, '歌詞の言語と読みを解析し、ボーカル音声とMIDIの音符へ対応付けます。混在歌詞は元の単語内の音節ごとに時刻を取得します。「結果」で再生しながら確認し、解析JSONの保存や「書き出し」でUTAVISTA形式への変換ができます。')));
   }
   function rememberDir(d) { if (!d) return; const rd = (S.cfg.recent_dirs || []).filter((x) => x !== d); rd.unshift(d); S.cfg.recent_dirs = rd.slice(0, 10); api('PUT', 'config', { recent_dirs: S.cfg.recent_dirs }).catch(() => {}); }
   function appendLog(lines) {
@@ -270,7 +282,7 @@
       $('top-status').textContent = '解析中…';
       watchJob(job, {
         onLog: (lines) => { S.running[slug].push(...lines); if (S.slug === slug) appendLog(lines); },
-        onDone: async (j) => { delete S.running[slug]; $('top-status').textContent = ''; toast(`解析完了: 残差 中央値 ${fmtMs(j.result.residual_median)} / p90 ${fmtMs(j.result.residual_p90)}`, 'success', 8000); await loadProjects(); if (S.slug === slug) setMode('result'); },
+        onDone: async (j) => { delete S.running[slug]; $('top-status').textContent = ''; toast(j.result.timing_unit === 'syllable' ? `解析完了: ${j.result.n_syllables}音節、要確認 ${j.result.low_support}` : `解析完了: 残差 中央値 ${fmtMs(j.result.residual_median)} / p90 ${fmtMs(j.result.residual_p90)}`, 'success', 8000); await loadProjects(); if (S.slug === slug) setMode('result'); },
         onError: async (j) => { delete S.running[slug]; $('top-status').textContent = ''; toast('解析に失敗しました: ' + j.error, 'error', 12000); if (S.slug === slug) appendLog(j.log || []); await loadProjects(); },
       });
     } catch (e) { toast(e.message, 'error'); }
@@ -288,6 +300,7 @@
       stat('未割当モーラ', String(r.n_mora_skipped ?? '–'), r.n_mora_skipped > 0), stat('歌われないノート', String(r.n_note_skipped ?? '–')),
       stat('繰返し行の不一致', `${r.repeat_mismatches ?? '–'} / ${r.repeated_lines ?? '–'}`),
       h('div', { class: 'stat', style: 'flex:1;min-width:200px' }, h('div', { class: 'k' }, 'モデル'), h('div', { style: 'font-size:11px', class: 'mono' }, `${r.model || ''}`)));
+    if (r.timing_unit === 'syllable') stats.replaceChildren(stat('音節', String(r.n_syllables)), stat('音声支持が弱い音節', String(r.low_support), r.low_support > 0), stat('未割当音節', String(r.n_mora_skipped)), stat('未使用MIDI音符', String(r.n_note_skipped)), stat('MIDI→音声', fmtMs(r.offset)));
     if (r.warnings && r.warnings.length) stats.append(h('div', { class: 'stat bad', style: 'flex-basis:100%' }, h('div', { class: 'k' }, '警告'), ...r.warnings.map((w) => h('div', { class: 'warn', style: 'font-size:12px' }, w))));
     page.append(stats);
     const host = h('div', { style: 'flex:1;min-height:0' });

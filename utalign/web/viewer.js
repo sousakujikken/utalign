@@ -24,6 +24,7 @@
     let res, peaks;
     try {
       res = await (await fetch(base + 'result.json', { cache: 'no-store' })).json();
+      if (res.timing_unit === 'syllable') return window.createSyllableViewer(root, { base, result: res });
       peaks = await (await fetch(base + 'peaks.json', { cache: 'no-store' })).json();
     } catch (e) {
       root.append(h('div', { class: 'empty' }, '結果がまだありません。「入力」タブで解析を実行してください。'));

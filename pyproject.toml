@@ -4,7 +4,7 @@ build-backend = "setuptools.build_meta"
 
 [project]
 name = "utalign"
-version = "0.3.1"
+version = "0.4.1"
 description = "歌詞・ボーカル音声・MIDI から文字単位の発音タイミングを推定し、UTAVISTA 用 JSON を出力するツール"
 readme = "README.md"
 requires-python = ">=3.11"
@@ -20,6 +20,12 @@ dependencies = [
     "torchaudio",
     "transformers>=4.40",
     "huggingface_hub",
+    "epitran==1.35.2",
+    "pypinyin==0.55.0",
+    "lingua-language-detector==2.2.0; python_version >= '3.12'",
+    "lingua-language-detector==2.1.1; python_version < '3.12'",
+    "numba>=0.59",
+    "regex>=2024.0",
 ]
 
 [project.optional-dependencies]
@@ -34,6 +40,7 @@ include = ["utalign*"]
 [tool.setuptools.package-data]
 "utalign.web" = ["*.html", "*.js", "*.css", "*.svg"]
 "utalign.data" = ["*.ts"]
+"utalign.multilingual" = ["resources/*"]
 
 [project.urls]
 Homepage = "https://github.com/sousakujikken/utalign"

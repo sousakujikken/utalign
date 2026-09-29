@@ -65,6 +65,11 @@ def result_to_lyrics_timing(result: dict[str, Any], keep_spaces_in_phrase: bool 
                     j += 1
                 s, e = _ms(c["start"]), _ms(c["end"])
                 n = j - i + 1
+                if c.get("timing_basis") == "word_envelope":
+                    for k in range(i, j + 1):
+                        timed[w[k]["index"]] = (s, max(s + MIN_MS, e))
+                    i = j + 1
+                    continue
                 if e - s < MIN_MS * n:
                     e = s + MIN_MS * n
                 for k in range(n):
@@ -96,9 +101,12 @@ def result_to_lyrics_timing(result: dict[str, Any], keep_spaces_in_phrase: bool 
                     e = s + MIN_MS
                 last_start = s
                 entry: dict[str, Any] = {"char": c["char"], "startMs": s, "endMs": e}
+                if c.get("timing_basis"):
+                    entry["timingBasis"] = c["timing_basis"]
+                    entry["syllableIds"] = c.get("syllable_ids", [])
                 if not c["sung"]:
                     entry["sung"] = False
-                elif ruby and not KANA_RE.match(c["char"]) and c["mora_ids"]:
+                elif ruby and c.get("language", "ja") == "ja" and not KANA_RE.match(c["char"]) and c["mora_ids"]:
                     # 漢字にはモーラの読みをルビとして付与 (importer の char.ruby)
                     entry["ruby"] = _kata_to_hira("".join(moras[k]["kana"] for k in c["mora_ids"]))
                 cs_out.append(entry)
@@ -108,6 +116,16 @@ def result_to_lyrics_timing(result: dict[str, Any], keep_spaces_in_phrase: bool 
                 "endMs": max(c["endMs"] for c in cs_out),
                 "chars": cs_out,
             })
+            if result.get("timing_unit") == "syllable":
+                ids = sorted({i for c in w for i in c.get("syllable_ids", [])})
+                words_out[-1]["syllables"] = [
+                    {"id": si, "wordId": result["syllables"][si]["word_id"],
+                     "text": result["words"][result["syllables"][si]["word_id"]]["text"],
+                     "indexInWord": result["syllables"][si]["syllable_index"],
+                     "language": result["syllables"][si]["language"],
+                     "reading": result["syllables"][si]["proxy_reading"],
+                     "startMs": _ms(result["syllables"][si]["start"]),
+                     "endMs": _ms(result["syllables"][si]["end"])} for si in ids]
         ptext = text_raw.strip("　 \t") if keep_spaces_in_phrase else "".join(w["text"] for w in words_out)
         phrases.append({
             "text": ptext,

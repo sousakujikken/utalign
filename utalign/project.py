@@ -39,6 +39,8 @@ def slugify(name: str) -> str:
 def default_options(cfg: dict[str, Any]) -> dict[str, Any]:
     return {"model": cfg["model"], "device": cfg["device"], "min_rest": cfg["min_rest"],
             "midi_tracks": "", "keep_drums": False, "star": False,
+            "alignment_mode": cfg.get("alignment_mode", "auto"), "languages": cfg.get("languages", "ja,en,de,fr,zh,ko,es,it"),
+            "midi_offset": "",
             "export_ruby": cfg.get("export_ruby", True), "export_strip_spaces": cfg.get("export_strip_spaces", False)}
 
 
@@ -94,6 +96,9 @@ class Project:
                 self.data["options"] = {**(self.data.get("options") or {}), **(body["options"] or {})}
             if "readings" in body:
                 self.data["readings"] = str(body["readings"])
+            for key in ("language_hints", "proxy_readings"):
+                if key in body:
+                    self.data[key] = str(body[key])
             for k, v in (body.get("inputs") or {}).items():
                 if k in INPUT_KINDS:
                     self.data.setdefault("inputs", {})[k] = str(Path(v).expanduser()) if v else None
@@ -107,6 +112,7 @@ class Project:
         d = {"slug": self.slug, "name": self.data.get("name", self.slug), "created": self.data.get("created"),
              "updated": self.data.get("updated"), "inputs": inputs, "inputs_exist": exists,
              "options": self.data.get("options", {}), "readings": self.data.get("readings", ""),
+             "language_hints": self.data.get("language_hints", ""), "proxy_readings": self.data.get("proxy_readings", ""),
              "has_result": result.exists(), "has_export": export.exists(),
              "last_run": self.data.get("last_run"), "last_export": self.data.get("last_export"),
              "path": str(self.path)}
@@ -234,6 +240,7 @@ class JobManager:
 
 def run_project_align(pr: Project, cfg: dict[str, Any], log: Callable[[str], None]) -> dict[str, Any]:
     from .pipeline import AlignOptions, run_align
+    from .multilingual.hints import language_hints, proxy_readings
     pr.reload()
     for k in INPUT_KINDS:
         p = pr.input_path(k)
@@ -247,11 +254,16 @@ def run_project_align(pr: Project, cfg: dict[str, Any], log: Callable[[str], Non
     tracks = [int(x) for x in re.split(r"[,\s]+", str(o.get("midi_tracks") or "")) if x.strip().isdigit()] or None
     opt = AlignOptions(model=o["model"], device=o.get("device", "auto"), star=bool(o.get("star")),
                        min_rest=float(o.get("min_rest", 0.2)), midi_tracks=tracks, keep_drums=bool(o.get("keep_drums")),
-                       readings=readings, models_dir=_cfg.models_dir(cfg))
+                       readings=readings, models_dir=_cfg.models_dir(cfg),
+                       alignment_mode=o["alignment_mode"],languages=tuple(x.strip() for x in o["languages"].split(',')),
+                       language_hints=language_hints(pr.data.get("language_hints", "")),
+                       proxy_readings=proxy_readings(pr.data.get("proxy_readings", "")),
+                       midi_offset=float(o["midi_offset"]) if str(o.get("midi_offset", "")).strip() else None)
     meta = run_align(pr.input_path("audio"), pr.input_path("lyrics"), pr.input_path("midi"), pr.out, pr.work, opt, log)
     last_run = {k: meta.get(k) for k in ("generated", "model", "vocab", "offset", "residual_median",
                                           "residual_p90", "residual_over150", "n_mora_skipped", "n_note_skipped",
-                                          "repeated_lines", "repeat_mismatches", "warnings", "elapsed")}
+                                          "repeated_lines", "repeat_mismatches", "warnings", "elapsed", "alignment_mode",
+                                          "timing_unit", "n_syllables", "low_support")}
     pr.update_saved({"last_run": last_run, "last_export": None})
     return last_run
 

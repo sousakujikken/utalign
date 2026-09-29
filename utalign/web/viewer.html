@@ -13,11 +13,16 @@
 <body>
 <div class="ut-topbar"><span class="ut-brand">utalign</span><span class="ut-badge">viewer</span><span class="ut-project-name" id="meta"></span></div>
 <div id="root"></div>
+<script src="syllable-viewer.js"></script>
 <script src="viewer.js"></script>
 <script>
   createViewer(document.getElementById('root'), { base: './' }).then((v) => {
     if (!v) return;
     const m = v.meta;
+    if (m.timing_unit === 'syllable') {
+      document.getElementById('meta').textContent = `${m.n_syllables}音節 · 要確認 ${m.low_support} · MIDIオフセット ${(m.offset * 1000).toFixed(0)}ms`;
+      return;
+    }
     document.getElementById('meta').textContent = `${m.model || ''}  offset=${(m.offset * 1000).toFixed(0)}ms  残差 中央値=${(m.residual_median * 1000).toFixed(0)}ms p90=${(m.residual_p90 * 1000).toFixed(0)}ms >150ms=${(m.residual_over150 * 100).toFixed(1)}%`;
   });
 </script>
