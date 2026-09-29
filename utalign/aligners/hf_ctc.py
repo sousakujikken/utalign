@@ -107,14 +107,33 @@ class HFCTCAligner(Aligner):
             self._model = AutoModelForCTC.from_pretrained(str(self.path)).to(self.device).eval()
         return self._model, self._fe
 
-    def compute_emissions(self, wav: np.ndarray, cache_dir: Optional[Path] = None) -> np.ndarray:
+    def _infer(self, seg: np.ndarray) -> np.ndarray:
         import torch
         model, fe = self._load()
+        x = fe(seg, sampling_rate=SR, return_tensors="pt").input_values.to(self.device)
+        with torch.inference_mode():
+            return torch.log_softmax(model(x).logits[0].float(), dim=-1).cpu().numpy()
+
+    def _fallback_to_cpu(self, reason: str) -> None:
+        """GPU/MPS で推論できなかったときの安全網: モデルを CPU へ移して以降は CPU で続ける."""
+        self.device_fallback = reason
+        self.log(f"[warn]   {self.device} で推論できないため CPU に切り替えます ({reason})")
+        self.device = "cpu"
+        if self._model is not None:
+            self._model = self._model.to("cpu")
+
+    def compute_emissions(self, wav: np.ndarray, cache_dir: Optional[Path] = None) -> np.ndarray:
+        self._load()
 
         def run(seg: np.ndarray) -> np.ndarray:
-            x = fe(seg, sampling_rate=SR, return_tensors="pt").input_values.to(self.device)
-            with torch.inference_mode():
-                return torch.log_softmax(model(x).logits[0].float(), dim=-1).cpu().numpy()
+            try:
+                return self._infer(seg)
+            except NotImplementedError as e:
+                # 例: macOS 15.1 未満の MPS "Output channels > 65536 not supported at the MPS device"
+                if self.device == "cpu":
+                    raise
+                self._fallback_to_cpu(f"{type(e).__name__}: {e}")
+                return self._infer(seg)
         return chunked_emissions(wav, run, f"hf_ctc:{self.model_id}", cache_dir)
 
     # ---------------------------------------------------------------- align

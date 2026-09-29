@@ -108,10 +108,16 @@ def doctor_info(cfg: Optional[dict[str, Any]] = None, probe_device: bool = True)
         "modelsDir": str(mdir), "model": model, "modelDownloaded": _models.is_downloaded(model, mdir),
         "modelPath": str(_models.local_path(model, mdir)), "afconvert": _afconvert_available(),
         "devicePreference": cfg["device"],
+        # macOS のバージョンと、その MPS に畳み込み出力 65,536 上限 (macOS < 15.1) があるか。
+        # utalign 自体は窓幅を上限内に収めているので上限があっても MPS で動くが、UTAVISTA の案内表示用に出す。
+        "macos": ".".join(map(str, mv)) if (mv := _cfg.macos_version()) else None,
+        "mpsConvLimited": _cfg.mps_conv_limited(),
     }
     if probe_device:
         try:
             info["device"] = _cfg.pick_device(cfg["device"])
+            import torch
+            info["torch"] = torch.__version__
         except Exception as e:  # noqa: BLE001
             info["device"] = None; info["deviceError"] = f"{type(e).__name__}: {e}"
     return info

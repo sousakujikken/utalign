@@ -69,7 +69,8 @@ def run_align(audio: Path, lyrics: Path, midi: Path, out: Path, work: Path,
     work = Path(work); work.mkdir(parents=True, exist_ok=True)
     stage("model")
     aligner = make_aligner(opt.model, models_dir=opt.models_dir, device=opt.device, star=opt.star)
-    log(f"[aligner] {aligner.describe()}")
+    aligner.log = log
+    log(f"[aligner] {aligner.describe()} device={aligner.device}")
     stage("lyrics")
     text = Path(lyrics).read_text(encoding="utf-8")
     lyr = parse_lyrics(text, opt.readings if opt.readings and Path(opt.readings).exists() else None)
@@ -104,6 +105,9 @@ def run_align(audio: Path, lyrics: Path, midi: Path, out: Path, work: Path,
         f">150ms={mr.residual_over150 * 100:.1f}%  mora_skipped={mr.n_mora_skipped} note_skipped={mr.n_note_skipped} "
         f"(unvoiced notes={mr.n_note_unvoiced})")
     warnings = []
+    if aligner.device_fallback:
+        warnings.append(f"GPU/MPS で推論できなかったため CPU で解析しました ({aligner.device_fallback})。"
+                        "設定で device=cpu にすると次回から警告なしで動きます")
     if abs(off0 - mr.offset) > 0.08:
         warnings.append("xcorr offset と CTC 残差オフセットが 80ms 以上ずれています。GUI で確認してください")
     if abs(mr.drift_slope - 1.0) > 0.001:
@@ -112,7 +116,8 @@ def run_align(audio: Path, lyrics: Path, midi: Path, out: Path, work: Path,
         log("[warn]   " + w)
     times = resolve_times(lyr.moras, mr.assigns, notes, ctc_start, mr.offset)
     meta = {"audio": str(audio), "lyrics": str(lyrics), "midi": str(midi), "xcorr_offset": off0,
-            "model": aligner.model_id, "vocab": aligner.vocab_kind,
+            "model": aligner.model_id, "vocab": aligner.vocab_kind, "device": aligner.device,
+            "device_fallback": aligner.device_fallback,
             "generated": time.strftime("%Y-%m-%dT%H:%M:%S"), "warnings": warnings}
     result = build_result(lyr, notes, mr, times, meta)
     # 繰り返し行の一致率
@@ -158,7 +163,8 @@ def run_export(result_path: Path, out_path: Path, ruby: bool = True, strip_space
     return {"phrases": len(doc["phrases"]), "words": n_w, "chars": n_c, "issues": issues, "path": str(out_path)}
 
 
-UTAVISTA_META_KEYS = ("generated", "model", "vocab", "offset", "residual_median", "residual_p90", "residual_over150",
+UTAVISTA_META_KEYS = ("generated", "model", "vocab", "device", "device_fallback", "offset",
+                      "residual_median", "residual_p90", "residual_over150",
                       "n_mora_skipped", "n_note_skipped", "repeated_lines", "repeat_mismatches", "warnings", "elapsed")
 
 
