@@ -73,6 +73,29 @@ def syllabify(phones, language):
     return [phones[a:b] for a,b in zip(cuts,cuts[1:])]
 
 
+def _japanese_word_spans(surface, reader, moras):
+    """Keep tokenizer boundaries except where they would split a reader mora.
+
+    The reader joins adjacent kana tokens before assigning moras (e.g. う + ぃ
+    becomes ウィ). Such tokens must also share a word here: assigning the mora
+    twice duplicates its sound, while keeping only its first token loses source
+    coverage and leaves the small-kana token without a syllable.
+    """
+    inside_mora = {i for mora in moras
+                   for i in range(min(mora.char_idx)+1, max(mora.char_idx)+1)}
+    spans = []
+    local_pos = 0
+    for token in reader.tagger(surface):
+        start = surface.index(token.surface, local_pos)
+        end = start + len(token.surface)
+        local_pos = end
+        if spans and start in inside_mora:
+            spans[-1] = (spans[-1][0], end)
+        else:
+            spans.append((start, end))
+    return spans
+
+
 class Frontend:
     def __init__(self, aligner, languages=LANGUAGES, readings=None):
         from lingua import Language, LanguageDetectorBuilder
@@ -187,9 +210,8 @@ class Frontend:
                     if language == 'ja':
                         parsed = parse_lyrics(surface, self.readings)
                         reader = Reader(self.readings)
-                        local_pos = 0
-                        for token in reader.tagger(surface):
-                            wa = surface.index(token.surface,local_pos); wb=wa+len(token.surface);local_pos=wb
+                        for wa,wb in _japanese_word_spans(surface, reader, parsed.moras):
+                            word_surface = surface[wa:wb]
                             moras = [m for m in parsed.moras if wa <= min(m.char_idx) < wb]
                             specs=[]
                             for mora in moras:
@@ -204,8 +226,8 @@ class Frontend:
                                                       nucleus_token=next((i for i,t in enumerate(ts) if t in 'aiueo'),0),
                                                       pronunciation_source='japanese_reader',syllable_basis='japanese_moras_merged_specials'))
                             if not specs:
-                                raise ValueError(f'Japanese reader produced no syllables for {token.surface!r}; specify the sung language or spelling')
-                            add_word(token.surface,start+wa,'ja',source,confidence,specs)
+                                raise ValueError(f'Japanese reader produced no syllables for {word_surface!r}; specify the sung language or spelling')
+                            add_word(word_surface,start+wa,'ja',source,confidence,specs)
                     else:
                         pronunciation=self.g2p.pronounce(surface,language)
                         parts=pronunciation.parts or syllabify(pronunciation.phones,language)

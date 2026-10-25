@@ -1,6 +1,7 @@
 """Contracts for multilingual syllables, joint note allocation, and constrained CTC."""
 import unittest
 from pathlib import Path
+from tempfile import TemporaryDirectory
 from types import SimpleNamespace
 import numpy as np
 
@@ -71,6 +72,56 @@ class FrontendTests(unittest.TestCase):
         d=self.front.parse('ラン ボヘー',[dict(text='ラン ボヘー',language='ja')])
         self.assertEqual([s['reading'] for s in d['syllables']],['ラン','ボ','ヘー'])
         self.assertEqual(d['syllables'][0]['model_phones'],['r','a','N'])
+
+    def test_small_kana_crossing_token_boundaries_keeps_one_mora(self):
+        cases=[('うぃ','ウィ',['w','i']),('ちぃ','チィ',['ch','i']),
+               ('うぇ','ウェ',['w','e']),('ふぁ','ファ',['f','a']),
+               ('きゃ','キャ',['ky','a']),('ぃ','ィ',['i'])]
+        for text,reading,phones in cases:
+            with self.subTest(text=text):
+                d=self.front.parse(text)
+                self.assertEqual([w['text'] for w in d['words']],[text])
+                self.assertEqual([s['reading'] for s in d['syllables']],[reading])
+                self.assertEqual(d['syllables'][0]['model_phones'],phones)
+                self.assertEqual(d['syllables'][0]['source_chars'],list(range(len(text))))
+
+    def test_small_kana_merge_preserves_neighboring_words_and_special_moras(self):
+        text='モニゅっと'
+        d=self.front.parse(text)
+        self.assertEqual([w['text'] for w in d['words']],['モ','ニゅ','っと'])
+        self.assertEqual([p for s in d['syllables'] for p in s['model_phones']],
+                         ['m','o','ny','u','cl','t','o'])
+        self.assertEqual([i for s in d['syllables'] for i in s['source_chars']],list(range(len(text))))
+        for word in d['words']:
+            for sid in word['syllable_ids']:
+                self.assertTrue(all(word['char_start']<=i<word['char_end']
+                                    for i in d['syllables'][sid]['source_chars']))
+        d=self.front.parse('こんにちは世界')
+        self.assertEqual([w['text'] for w in d['words']],['こんにちは','世界'])
+
+    def test_small_kana_in_mixed_lyrics_preserves_absolute_source_positions(self):
+        text='🌋hello うぃ、ちぃ\nうぃ world'
+        d=self.front.parse(text,[dict(text=t,language='en') for t in ('hello','world')])
+        self.assertEqual([w['text'] for w in d['words']],['hello','うぃ','ちぃ','うぃ','world'])
+        self.assertEqual([w['language'] for w in d['words']],['en','ja','ja','ja','en'])
+        self.assertEqual([w['line'] for w in d['words']],[0,0,0,1,1])
+        japanese=[w for w in d['words'] if w['language']=='ja']
+        self.assertEqual([w['char_start'] for w in japanese],[7,10,13])
+        for word in d['words']:
+            self.assertEqual(text[word['char_start']:word['char_end']],word['text'])
+            if word['language']=='ja':
+                self.assertEqual(len(word['syllable_ids']),1)
+                syllable=d['syllables'][word['syllable_ids'][0]]
+                self.assertEqual(syllable['source_chars'],list(range(word['char_start'],word['char_end'])))
+
+    def test_explicit_separate_readings_are_not_merged_by_spelling(self):
+        with TemporaryDirectory() as directory:
+            readings=Path(directory)/'readings.txt'
+            readings.write_text('ぃ い\n',encoding='utf-8')
+            d=Frontend(self.model,readings=readings).parse('うぃ')
+        self.assertEqual([w['text'] for w in d['words']],['う','ぃ'])
+        self.assertEqual([s['reading'] for s in d['syllables']],['ウ','イ'])
+        self.assertEqual([s['source_chars'] for s in d['syllables']],[[0],[1]])
 
     def test_phonetic_diphthongs_and_korean_glides(self):
         self.assertEqual(len(syllabify(['tʃ','ao̯'],'it')),1)
