@@ -34,6 +34,11 @@ class Params:
     melisma_silent_pen: float = 0.6   # 無声ノートをメリスマに使う
     no_ctc_resid: float = 0.10
     phrase_cross_pen: float = 0.3   # メリスマがフレーズ境界 (休符) をまたぐ
+    # 休符が長いメリスマは実質ありえない。旧実装はペナルティが 0.3 で頭打ちだったため、
+    # 歌詞に無いノート (アドリブ・コーラス) が間奏明けにあると、直前フレーズ末尾のモーラが
+    # 「ノート skip (0.4/個) より安い」メリスマとして間奏ごと抱え込み、10 秒超の文字が生じた。
+    max_melisma_rest: float = 1.0     # これ以上の休符をまたぐメリスマは禁止 (秒)
+    max_melisma_span: float = 8.0     # メリスマ全体 (先頭 on〜末尾 off) の上限 (秒)
 
 
 @dataclass
@@ -107,6 +112,8 @@ def match(ctc_start: np.ndarray, ctc_w: np.ndarray, special: np.ndarray,
                     if j + l > N:
                         break
                     n = j + l - 1
+                    if note_on[n] - note_off[n - 1] >= p.max_melisma_rest or note_off[n] - note_on[j] > p.max_melisma_span:
+                        break
                     early = 0.0
                     if i + 1 < M and has[i + 1]:
                         early = ctc_w[i + 1] * min(p.resid_cap, max(0.0, note_on[n] - p.melisma_early_tol - ctc_start[i + 1]))

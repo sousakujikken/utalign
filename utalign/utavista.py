@@ -14,6 +14,9 @@ from typing import Any
 
 SCHEMA_VERSION = "lyrics-timing/1.0"
 MIN_MS = 10
+# UTAVISTA の取込検証 (maxSustainMsPerChar, 既定 10000ms) を 1 文字でも超えると結果全体が拒否される。
+# 割当が破綻した文字を最後の砦として切り詰める (切り詰めた文字は clampedFromMs で示す)。
+MAX_CHAR_MS = 9000
 WS_RE = re.compile(r"[\s　]")
 
 
@@ -101,6 +104,9 @@ def result_to_lyrics_timing(result: dict[str, Any], keep_spaces_in_phrase: bool 
                     e = s + MIN_MS
                 last_start = s
                 entry: dict[str, Any] = {"char": c["char"], "startMs": s, "endMs": e}
+                if e - s > MAX_CHAR_MS:
+                    entry["endMs"] = s + MAX_CHAR_MS
+                    entry["clampedFromMs"] = e - s
                 if c.get("timing_basis"):
                     entry["timingBasis"] = c["timing_basis"]
                     entry["syllableIds"] = c.get("syllable_ids", [])

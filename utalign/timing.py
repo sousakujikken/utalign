@@ -155,6 +155,12 @@ def resolve_times(moras: list[Mora], assigns: list[MoraAssign], notes: list[Note
             if same_phrase and out[nxt].start is not None and out[nxt].start > out[i].start:
                 out[i].end = out[nxt].start; out[i].end_kind = 'next_onset'
                 continue
+        # 保険: 長い休符をまたぐノート列なら、休符の手前のノートで切る
+        ids = a.note_ids
+        for q in range(1, len(ids)):
+            if on[ids[q]] - off[ids[q - 1]] >= 1.0:
+                last = ids[q - 1]
+                break
         out[i].end = max(off[last], out[i].start + 0.03); out[i].end_kind = 'note_off'
     for i in range(M):
         if out[i] is None:
