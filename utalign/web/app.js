@@ -336,7 +336,7 @@
   }
 
   // ---------------------------------------------------------------- 設定
-  async function loadConfig() { S.cfg = await api('GET', 'config'); S.models = (await api('GET', 'models')).models; }
+  async function loadConfig() { S.cfg = await api('GET', 'config'); S.models = (await api('GET', 'models')).models; const vb = document.getElementById('version'); if (vb && S.cfg._version) vb.textContent = 'v' + S.cfg._version; }
   function renderSettings() {
     const page = $('page-settings'); page.innerHTML = '';
     const c = S.cfg; const pending = {};
