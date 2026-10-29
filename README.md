@@ -4,6 +4,8 @@
 UTAVISTA の歌詞タイミング JSON (`lyrics-timing/1.0`) を出力します。
 UTAVISTA から子プロセスとして呼ばれる CLI、ブラウザで動くアプリ (UTAVISTA v2 と同じデザイントークン)、単体の CLI があります。
 
+**v0.4.2**: 間奏をまたぐ長いメリスマで1文字が10秒を超え、UTAVISTA の取込検証で解析結果全体が拒否される問題を修正しました。
+
 **v0.4.1**: eSpeak NGへの依存を除去しました。CMUdict＋g2pE、pypinyin、Epitranでローカル音素変換を行います。
 
 **v0.4.0**: 日本語・英語・ドイツ語・フランス語・中国語（普通話）・韓国語・スペイン語・イタリア語が混在する歌詞の
@@ -92,7 +94,7 @@ UTAVISTA (AI 歌詞分析タブ) は utalign を子プロセスとして起動�
 
 ```bash
 utalign doctor --json
-# {"name":"utalign","version":"0.4.1","home":...,"model":...,"modelDownloaded":true,"device":"mps",
+# {"name":"utalign","version":"0.4.2","home":...,"model":...,"modelDownloaded":true,"device":"mps",
 #  "macos":"14.6.1","mpsConvLimited":true,"torch":"2.14.0",...}
 
 utalign utavista-align --audio vocal.mp3 --lyrics lyrics.txt --midi vocal.mid \

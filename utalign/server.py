@@ -33,6 +33,7 @@ from email.policy import HTTP
 from pathlib import Path
 from typing import Any, Optional
 
+from . import __version__
 from . import config as _cfg
 from . import models as _models
 from . import project as _proj
@@ -184,13 +185,13 @@ class Handler(http.server.BaseHTTPRequestHandler):
         if route == "config":
             if method == "GET":
                 self._json({**cfg, "_paths": {"config": str(_cfg.config_path()), "models_dir": str(_cfg.models_dir(cfg)),
-                                             "projects_dir": str(_cfg.projects_dir(cfg)), "device": _cfg.pick_device(cfg["device"])}})
+                                             "projects_dir": str(_cfg.projects_dir(cfg)), "device": _cfg.pick_device(cfg["device"])}, "_version": __version__})
             elif method == "PUT":
                 body = self._read_json()
                 cfg.update({k: v for k, v in body.items() if k in _cfg.DEFAULTS})
                 cfg = _cfg.save_config(cfg)
                 self._json({**cfg, "_paths": {"config": str(_cfg.config_path()), "models_dir": str(_cfg.models_dir(cfg)),
-                                             "projects_dir": str(_cfg.projects_dir(cfg)), "device": _cfg.pick_device(cfg["device"])}})
+                                             "projects_dir": str(_cfg.projects_dir(cfg)), "device": _cfg.pick_device(cfg["device"])}, "_version": __version__})
             else:
                 self._error("method", 405)
             return
