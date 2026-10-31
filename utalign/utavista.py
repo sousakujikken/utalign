@@ -10,6 +10,7 @@
 from __future__ import annotations
 
 import re
+import unicodedata
 from typing import Any
 
 SCHEMA_VERSION = "lyrics-timing/1.0"
@@ -29,6 +30,16 @@ KANA_RE = re.compile(r"[\u3041-\u309F\u30A0-\u30FF]")
 
 def _kata_to_hira(s: str) -> str:
     return "".join(chr(ord(c) - 0x60) if 0x30A1 <= ord(c) <= 0x30F6 else c for c in s)
+
+
+def _attached(ch: str) -> bool:
+    """結合文字 (濁点・半濁点・異体字セレクタなど) と半角/スペーシング濁点は直前の文字と一体の書記素."""
+    return unicodedata.category(ch).startswith("M") or ch in "ﾞﾟ゛゜"
+
+
+def _ruby_target(ch: str) -> bool:
+    """ルビを付ける文字: かな (半角を含む)・結合記号・空白以外 (漢字や読みを上書きした数字など)."""
+    return not (KANA_RE.match(ch) or 0xFF65 <= ord(ch) <= 0xFF9F or _attached(ch) or ch.isspace())
 
 
 def result_to_lyrics_timing(result: dict[str, Any], keep_spaces_in_phrase: bool = True, ruby: bool = False) -> dict[str, Any]:
@@ -67,18 +78,26 @@ def result_to_lyrics_timing(result: dict[str, Any], keep_spaces_in_phrase: bool 
                 while j + 1 < len(w) and w[j + 1]["sung"] and w[j + 1]["mora_ids"] == c["mora_ids"]:
                     j += 1
                 s, e = _ms(c["start"]), _ms(c["end"])
-                n = j - i + 1
                 if c.get("timing_basis") == "word_envelope":
                     for k in range(i, j + 1):
                         timed[w[k]["index"]] = (s, max(s + MIN_MS, e))
                     i = j + 1
                     continue
+                # 等分は書記素単位: 結合濁点などは基底文字と同じ区間 (独立した半分の時刻を作らない)
+                units: list[list[int]] = []
+                for k in range(i, j + 1):
+                    if units and _attached(w[k]["char"]):
+                        units[-1].append(k)
+                    else:
+                        units.append([k])
+                n = len(units)
                 if e - s < MIN_MS * n:
                     e = s + MIN_MS * n
-                for k in range(n):
-                    cs = s + (e - s) * k // n
-                    ce = s + (e - s) * (k + 1) // n
-                    timed[w[i + k]["index"]] = (cs, ce)
+                for u, members in enumerate(units):
+                    cs = s + (e - s) * u // n
+                    ce = s + (e - s) * (u + 1) // n
+                    for k in members:
+                        timed[w[k]["index"]] = (cs, ce)
                 i = j + 1
         # 歌われない文字: 直前の歌唱文字の末尾 10ms (行頭なら直後の先頭 10ms) を借りる
         all_line = [c for w in words_raw for c in w]
@@ -109,12 +128,20 @@ def result_to_lyrics_timing(result: dict[str, Any], keep_spaces_in_phrase: bool 
                     entry["clampedFromMs"] = e - s
                 if c.get("timing_basis"):
                     entry["timingBasis"] = c["timing_basis"]
-                    entry["syllableIds"] = c.get("syllable_ids", [])
+                    if "syllable_ids" in c:
+                        entry["syllableIds"] = c["syllable_ids"]
                 if not c["sung"]:
                     entry["sung"] = False
-                elif ruby and c.get("language", "ja") == "ja" and not KANA_RE.match(c["char"]) and c["mora_ids"]:
-                    # 漢字にはモーラの読みをルビとして付与 (importer の char.ruby)
-                    entry["ruby"] = _kata_to_hira("".join(moras[k]["kana"] for k in c["mora_ids"]))
+                elif ruby and c.get("language", "ja") == "ja" and _ruby_target(c["char"]) and c["mora_ids"]:
+                    # 漢字にはその文字に帰属するモーラの読みをルビとして付与 (importer の char.ruby)。
+                    # 多言語の音節は送り仮名の ッ/ン/ー を含むので、文字ごとのモーラ読み (ruby_reading) を使う。
+                    # 表記全体への読み上書き ('100 ひゃく') の文字は ruby_reading が空: 文字ごとの読みが不明なので
+                    # ルビを付けない (取込側の char.ruby は 1 文字ごと。先頭文字への集約・複製・按分はしない)。
+                    reading = c.get("ruby_reading")
+                    if reading is None:
+                        reading = "".join(moras[k]["kana"] for k in c["mora_ids"])
+                    if reading:
+                        entry["ruby"] = _kata_to_hira(reading)
                 cs_out.append(entry)
             words_out.append({
                 "text": "".join(c["char"] for c in w),
@@ -131,7 +158,10 @@ def result_to_lyrics_timing(result: dict[str, Any], keep_spaces_in_phrase: bool 
                      "language": result["syllables"][si]["language"],
                      "reading": result["syllables"][si]["proxy_reading"],
                      "startMs": _ms(result["syllables"][si]["start"]),
-                     "endMs": _ms(result["syllables"][si]["end"])} for si in ids]
+                     "endMs": _ms(result["syllables"][si]["end"]),
+                     **({"moras": [{"reading": m["kana"], "kind": m["kind"], "sourceChars": m["source_chars"]}
+                                   for m in result["syllables"][si]["moras"]]}
+                        if result["syllables"][si].get("moras") else {})} for si in ids]
         ptext = text_raw.strip("　 \t") if keep_spaces_in_phrase else "".join(w["text"] for w in words_out)
         phrases.append({
             "text": ptext,

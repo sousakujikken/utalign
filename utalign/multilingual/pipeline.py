@@ -34,7 +34,8 @@ def use_multilingual(text, opt):
     if regex.search(r'[\p{Latin}\p{Hangul}]',content):
         return True
     # Chinese lyrics using only Han characters must not disappear into a Japanese reading.
-    if 'zh' in opt.languages and regex.search(r'\p{Han}',content) and not regex.search(r'[\p{Hiragana}\p{Katakana}]',content):
+    # 々/〆/ー are Japanese spelling cues (pypinyin cannot read 々), like kana.
+    if 'zh' in opt.languages and regex.search(r'\p{Han}',content) and not regex.search(r'[\p{Hiragana}\p{Katakana}ー々〆]',content):
         from lingua import Language, LanguageDetectorBuilder
         detector=LanguageDetectorBuilder.from_languages(Language.JAPANESE,Language.CHINESE).build()
         return detector.detect_language_of(content)==Language.CHINESE
@@ -52,30 +53,53 @@ def build_result(document, syllables, notes, offset, summary, meta, duration):
         ss=[syllables[i] for i in w['syllable_ids']]
         w.update(start=ss[0]['start'],end=ss[-1]['end'])
     char_ids={};note_ids={}
+    # Japanese syllables keep their reader moras: which kana belongs to which source character.
+    # Ruby is taken from these (待って -> 待: ま), never from the merged syllable reading (まっ).
+    char_reading={};char_estimated=set()
+    # A whole-spelling readings override ('100 ひゃく') has no per-character reading: its characters share the
+    # spelling's envelope (no invented character onsets) and get no per-character ruby. lyrics-timing/1.0 ruby
+    # is per character, so the whole reading on any one character would be wrong. The full reading stays in
+    # the syllable moras (kana, source_chars, envelope).
+    from ..lyrics import ENVELOPE_RUBY_OMITTED
+    envelope_chars=set()
     moras=[]
     for s in syllables:
         for ci in s['source_chars']:char_ids.setdefault(ci,[]).append(s['id'])
         for ni in s['note_ids']:note_ids.setdefault(ni,[]).append(s['id'])
+        for mora in s.get('moras') or []:
+            if mora.get('envelope'):
+                envelope_chars.update(mora['source_chars'])
+                for ci in mora['source_chars']:char_reading.setdefault(ci,[])
+                continue
+            for ci in mora['source_chars']:
+                char_reading.setdefault(ci,[]).append(mora['kana'])
+                if mora.get('split_estimated'):char_estimated.add(ci)
         moras.append(dict(s,id=s['id'],kana=s['proxy_reading'],romaji=' '.join(s['model_phones']),
                           kind='syllable',text=words[s['word_id']]['text'],char_idx=s['source_chars'],sung=True,
                           source=s['timing_basis'],end_kind=s['end_basis'],ctc_start=s['start'],
-                          phrase=notes[s['note_ids'][0]].phrase,split_estimated=False,seg=s['word_id']))
-    chars=[];line=0
+                          phrase=notes[s['note_ids'][0]].phrase,split_estimated=bool(s.get('split_estimated')),seg=s['word_id']))
+    # Physical lines use the same delimiters as parsing/diagnostics (CRLF, LF, CR, U+2028, ...).
+    # The delimiters stay in text/chars; a delimiter belongs to the line it ends.
+    from ..lyric_input import line_index, line_spans
+    char_line=line_index(document['text'])
+    chars=[]
     for i,ch in enumerate(document['text']):
+        line=char_line[i]
         ids=char_ids.get(i,[]);ss=[syllables[k] for k in ids]
         language=ss[0]['language'] if ss else None
-        chars.append(dict(index=i,char=ch,line=line,mora_ids=ids,syllable_ids=ids,pronounceable=bool(ids),sung=bool(ids),
-                          start=min(s['start'] for s in ss) if ss else None,end=max(s['end'] for s in ss) if ss else None,
-                          language=language,split_estimated=False,
-                          timing_basis='word_envelope' if ss and language!='ja' else 'source_syllable_envelope'))
-        if ch=='\n':line+=1
-    lines=[];pos=0
-    for li,text in enumerate(document['text'].split('\n')):
+        entry=dict(index=i,char=ch,line=line,mora_ids=ids,syllable_ids=ids,pronounceable=bool(ids),sung=bool(ids),
+                   start=min(s['start'] for s in ss) if ss else None,end=max(s['end'] for s in ss) if ss else None,
+                   language=language,split_estimated=i in char_estimated,
+                   timing_basis='word_envelope' if ss and (language!='ja' or i in envelope_chars) else 'source_syllable_envelope')
+        if i in char_reading:entry['ruby_reading']=''.join(char_reading[i])
+        if i in envelope_chars:entry['ruby_omitted']=ENVELOPE_RUBY_OMITTED
+        chars.append(entry)
+    lines=[]
+    for li,(a,b,_) in enumerate(line_spans(document['text'])):
         ss=[s for s in syllables if s['line']==li]
-        lines.append(dict(line=li,text=text,char_start=pos,char_end=pos+len(text),
+        lines.append(dict(line=li,text=document['text'][a:b],char_start=a,char_end=b,
                           start=ss[0]['start'] if ss else None,end=ss[-1]['end'] if ss else None,
                           n_syllables=len(ss),n_moras=len(ss),n_sung=len(ss)))
-        pos+=len(text)+1
     ns=[dict(id=n.id,start=n.start+offset,end=n.end+offset,pitch=n.pitch,track=n.track,phrase=n.phrase,
              midi_start=n.start,syllable_ids=note_ids.get(i,[]),mora_ids=note_ids.get(i,[])) for i,n in enumerate(notes)]
     return dict(document,schema='utalign-result/2',timing_unit='syllable',words=words,syllables=syllables,
@@ -84,7 +108,8 @@ def build_result(document, syllables, notes, offset, summary, meta, duration):
                 limitations=['Language selection and syllabification are pronunciation hypotheses.',
                              'Proxy sounds need not exactly reproduce the original language.',
                              'Complete MIDI assignment does not guarantee acoustic accuracy.',
-                             'Display ends include MIDI sustain; foreign spelling characters use word envelopes.'])
+                             'Display ends include MIDI sustain; foreign spelling characters use word envelopes.',
+                             'Characters sharing one Japanese syllable divide its interval per grapheme; these are not measured character onsets.'])
 
 
 def run_multilingual(audio, lyrics, midi, out, work, opt, log, progress):
@@ -96,7 +121,7 @@ def run_multilingual(audio, lyrics, midi, out, work, opt, log, progress):
     from ..timing import xcorr_offset
     from ..output import decode_audio, write_peaks, write_click
     from ..pipeline import WEB_DIR, VIEWER_FILES
-    from .frontend import Frontend
+    from .frontend import Frontend, input_warnings
     from .proxy_readings import apply_proxy_readings
     from .joint_alignment import align_syllables
 
@@ -130,7 +155,8 @@ def run_multilingual(audio, lyrics, midi, out, work, opt, log, progress):
         raise ValueError('音声のフレーム数とCTCの出力が一致しません')
     stage('align');stage('match')
     syllables,summary=align_syllables(em,document,notes,offset,model,wav,band=opt.search_band)
-    warnings=[]
+    # Inferred languages and estimated kanji reading splits stay visible (also in UTAVISTA meta).
+    warnings=input_warnings(document)
     if summary['low_support']:
         warnings.append(f"{summary['low_support']}音節は音声との一致が弱いため確認してください")
     if model.device_fallback:warnings.append('GPU推論に失敗したためCPUで解析しました: '+model.device_fallback)

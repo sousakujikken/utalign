@@ -88,7 +88,10 @@ class FrontendTests(unittest.TestCase):
     def test_small_kana_merge_preserves_neighboring_words_and_special_moras(self):
         text='モニゅっと'
         d=self.front.parse(text)
-        self.assertEqual([w['text'] for w in d['words']],['モ','ニゅ','っと'])
+        # v0.4.2 expected words モ / ニゅ / っと, which made the token-initial っ a standalone
+        # 'cl'-only syllable. The sokuon belongs to ニュ, so the display word spans are merged.
+        self.assertEqual([w['text'] for w in d['words']],['モ','ニゅっと'])
+        self.assertEqual([s['reading'] for s in d['syllables']],['モ','ニュッ','ト'])
         self.assertEqual([p for s in d['syllables'] for p in s['model_phones']],
                          ['m','o','ny','u','cl','t','o'])
         self.assertEqual([i for s in d['syllables'] for i in s['source_chars']],list(range(len(text))))

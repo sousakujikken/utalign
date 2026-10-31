@@ -8,7 +8,7 @@ from typing import Any
 
 import numpy as np
 
-from .lyrics import LyricsResult
+from .lyrics import ENVELOPE_RUBY_OMITTED, LyricsResult
 from .matcher import MoraAssign
 from .midi import Note
 from .timing import MatchResult, MoraTime
@@ -39,6 +39,9 @@ def build_result(lyr: LyricsResult, notes: list[Note], mr: MatchResult, times: l
     for li, (a, b) in enumerate(lyr.lines):
         for ci in range(a, b):
             line_of[ci] = li
+    # 表記全体への読み上書き ('100 ひゃく') のモーラは表記の全文字に属し、文字ごとの読み・発音開始は不明。
+    # その文字は表記全体の区間を共有し (word_envelope)、文字単位のルビは出さない (lyrics-timing/1.0 の ruby は
+    # 1 文字ごとなので、表記全体の読みをどの 1 文字に付けても誤り)。読み全体は moras (kana/char_idx) に残る。
     for ci, ch in enumerate(lyr.chars):
         mids = char_moras.get(ci, [])
         sung = [moras_out[k] for k in mids if moras_out[k]["sung"]]
@@ -50,6 +53,11 @@ def build_result(lyr: LyricsResult, notes: list[Note], mr: MatchResult, times: l
             "mora_ids": mids,
             "split_estimated": any(lyr.moras[k].split_estimated for k in mids),
         }
+        envelope = [k for k in mids if lyr.moras[k].envelope]
+        if envelope:
+            entry["timing_basis"] = "word_envelope"
+            entry["ruby_reading"] = ""   # 文字ごとの読みが不明: ルビを付けない (複製・按分・先頭文字への集約をしない)
+            entry["ruby_omitted"] = ENVELOPE_RUBY_OMITTED
         if sung:
             entry["confidence"] = float(np.mean([
                 1.0 if x["source"] == "midi" else max(0.0, 1.0 - abs((x["ctc_start"] or x["midi_start"]) - x["midi_start"]) / 0.3)

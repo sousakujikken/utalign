@@ -62,6 +62,13 @@ class HFCTCAligner(Aligner):
 
     # ---------------------------------------------------------------- tokens
     def mora_tokens(self, mora, next_mora) -> list[str]:
+        """モーラ -> 語彙のトークン列. 通常モーラは全体を表せるときだけトークンを返す.
+
+        語彙に無い部分を黙って落とさない (ゔ の無いかな語彙で ヴァ -> ァ、v の無い音素語彙で ヴァ -> a
+        にしない)。一部でも表せなければ [] を返し、lyrics_issues / Frontend が位置付きの no_model_phones に
+        する (通常モーラの [] は決して直前へ畳まれない)。子音を語彙の音素へ分解できる場合 (ts -> t s) は
+        全部の部分が語彙にあるときだけ分解する。ー/ッ/ン で語彙に無いものは従来どおり [] (直前へ畳む)。
+        """
         if self.is_phoneme:
             if mora.kind == "hatsuon":
                 return ["N"]
@@ -73,13 +80,17 @@ class HFCTCAligner(Aligner):
             if not r:
                 return []
             if r[-1] not in VOWELS:
-                return [c for c in r if c in self.vocab]
+                return [r] if r in self.vocab else []
             cons, v = r[:-1], r[-1]
+            if v not in self.vocab:
+                return []
             if not cons:
                 return [v]
             if cons in self.vocab:
                 return [cons, v]
-            return [c for c in cons if c in self.vocab] + [v]
+            if all(c in self.vocab for c in cons):
+                return list(cons) + [v]
+            return []
         s = mora.kana
         if mora.kind == "choon" and "ー" not in self.vocab:
             return []
@@ -91,6 +102,8 @@ class HFCTCAligner(Aligner):
                 toks.append(ch)
             elif kata2hira(ch) in self.vocab:
                 toks.append(kata2hira(ch))
+            else:
+                return []   # 一部の文字だけのトークン列にしない
         return toks
 
     # ---------------------------------------------------------------- emission

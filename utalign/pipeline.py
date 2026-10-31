@@ -61,7 +61,7 @@ def run_align(audio: Path, lyrics: Path, midi: Path, out: Path, work: Path,
               progress: Progress = _noop) -> dict[str, Any]:
     from .aligners import make_aligner
     from .audio import load_audio_16k
-    from .lyrics import build_ctc_units, parse_lyrics
+    from .lyrics import prepare_mora_lyrics
     from .midi import load_notes
     from .output import build_result, decode_audio, write_click, write_peaks
     from .timing import resolve_times, run_match, xcorr_offset
@@ -83,8 +83,9 @@ def run_align(audio: Path, lyrics: Path, midi: Path, out: Path, work: Path,
     aligner.log = log
     log(f"[aligner] {aligner.describe()} device={aligner.device}")
     stage("lyrics")
-    lyr = parse_lyrics(text, opt.readings if opt.readings and Path(opt.readings).exists() else None)
-    lyr.units = build_ctc_units(lyr.moras, aligner.mora_tokens)
+    # 数字・読めない漢字・注釈以外の未対応文字・直前の音が無い ー などは、黙って除かず位置付きのエラーにする
+    lyr = prepare_mora_lyrics(text, opt.readings if opt.readings and Path(opt.readings).exists() else None,
+                              aligner.mora_tokens)
     log(f"[lyrics] {len(lyr.moras)} moras, {len(lyr.units)} ctc units, {len(lyr.unsung_chars)} unsung chars")
     if not lyr.moras:
         raise ValueError("歌詞に発音できる文字がありません")
@@ -122,6 +123,10 @@ def run_align(audio: Path, lyrics: Path, midi: Path, out: Path, work: Path,
         warnings.append("xcorr offset と CTC 残差オフセットが 80ms 以上ずれています。GUI で確認してください")
     if abs(mr.drift_slope - 1.0) > 0.001:
         warnings.append("MIDI と音声にドリフトがあります (slope != 1)。定数オフセットでは不十分かもしれません")
+    from .lyrics import envelope_groups, envelope_ruby_warning
+    ruby_warning = envelope_ruby_warning(envelope_groups(lyr))
+    if ruby_warning:
+        warnings.append(ruby_warning)
     for w in warnings:
         log("[warn]   " + w)
     times = resolve_times(lyr.moras, mr.assigns, notes, ctc_start, mr.offset)
