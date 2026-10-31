@@ -1,7 +1,6 @@
 """Lyric input integrity: source spelling, readings and source mapping.
 
-The 84 inputs of the v0.4.2 frontend audit (diagnostics/frontend-audit-20261031,
-matrix.py) run over four paths:
+Generic synthetic lyric inputs run over four paths:
 
 - japanese:     legacy mora analysis (prepare_mora_lyrics, as run_align uses it)
 - multilingual: the syllable frontend with automatic language selection
@@ -879,7 +878,7 @@ def test_whole_spelling_override_reads_every_character(tmp_path, key, reading, p
 
 @pytest.mark.parametrize('path', ['japanese', 'multilingual'])
 def test_whole_spelling_override_shares_one_interval_and_exports_no_per_character_ruby(tmp_path, path):
-    """lyrics-timing/1.0 ruby is per character (MAX reads only char.ruby): a reading of the whole spelling
+    """lyrics-timing/1.0 ruby is per character (consumers read only char.ruby): a reading of the whole spelling
     is never put on one character, duplicated or redistributed; it stays in the result moras/syllables."""
     readings = readings_file(tmp_path, '100 ひゃく\n')
     if path == 'japanese':

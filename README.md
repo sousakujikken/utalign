@@ -4,6 +4,16 @@
 UTAVISTA の歌詞タイミング JSON (`lyrics-timing/1.0`) を出力します。
 UTAVISTA から子プロセスとして呼ばれる CLI、ブラウザで動くアプリ (UTAVISTA v2 と同じデザイントークン)、単体の CLI があります。
 
+**v0.4.3**: 歌詞入力の扱いを見直しました。
+- 原文の歌詞は書き換えず、読み・言語判定は別の解析用表記 (NFC・半角カナ→全角など) で行います。日本語の読みは
+  連続した日本語部分の文脈で付け、`ー`・`ッ`・`ン` を直前の音へ付けます。
+- 数字・辞書に読みの無い漢字・読みを持つ記号・未対応の文字・判定が曖昧な箇所は、黙って除かず行・列・理由付きのエラーにします。
+- 結果の文字・ルビ・時刻は原文の位置に対応付けます。表記全体の読みは文字ごとのルビに按分せず、同じ区間を共有します。
+- 読みの上書き (`--readings`) は、`表記 よみ` が表記全体、`表記 よ|み` が 1 文字ずつの読みです。対応付けられない指定はエラーにします。
+
+詳細と制限は [多言語音節解析](docs/multilingual.md) の「歌詞入力の扱い」を参照してください。すべての入力への対応や
+タイミング精度を保証するものではありません。
+
 **v0.4.2**: 間奏をまたぐ長いメリスマで1文字が10秒を超え、UTAVISTA の取込検証で解析結果全体が拒否される問題を修正しました。
 
 **v0.4.1**: eSpeak NGへの依存を除去しました。CMUdict＋g2pE、pypinyin、Epitranでローカル音素変換を行います。
@@ -94,7 +104,7 @@ UTAVISTA (AI 歌詞分析タブ) は utalign を子プロセスとして起動�
 
 ```bash
 utalign doctor --json
-# {"name":"utalign","version":"0.4.2","home":...,"model":...,"modelDownloaded":true,"device":"mps",
+# {"name":"utalign","version":"0.4.3","home":...,"model":...,"modelDownloaded":true,"device":"mps",
 #  "macos":"14.6.1","mpsConvLimited":true,"torch":"2.14.0",...}
 
 utalign utavista-align --audio vocal.mp3 --lyrics lyrics.txt --midi vocal.mid \
@@ -136,7 +146,10 @@ utalign config --set device=cpu
 UTAVISTA の「utalign をインストール」は、同梱の uv で `~/Library/Application Support/utalign/venv` に Python 3.13 を用意し、
 本リポジトリの GitHub Release に添付された wheel (`utalign-<version>-py3-none-any.whl`) を `uv pip install` で導入したうえで
 既定モデルを取得します。Release には再現性の記録として `requirements.lock` (依存の固定版とハッシュ) も添付します。
-Release 資産は `tools/build_release.sh` で生成します。
+Release 資産は `tools/build_release.sh <空の出力先>` で生成します。コミット済みの HEAD だけからビルドし、
+`uv.lock` は更新せず (`uv export --frozen`)、ビルドバックエンドは `setuptools==84.2.1` に固定します。
+出力先には wheel・`requirements.lock`・`THIRD_PARTY_NOTICES.md` のほか、ソース revision と固定した入力を記録した
+`release-inputs.txt` と `SHA256SUMS` が入ります。
 
 ## アプリ (GUI)
 
@@ -220,7 +233,7 @@ UTAVISTA 本体での検証 (utavista2-refactor のリポジトリで実行):
 - `tools/validate_with_utavista.ts` UTAVISTA 本体の検証器で出力を検査するスクリプト
 - `tools/spikes/` アライナ選定の検証スパイク (履歴、製品コードでは未使用)
 - `tools/dump_assignments.py` 行別のモーラ割当ダンプ (デバッグ用)
-- `tools/build_release.sh` Release 資産 (wheel / requirements.lock / THIRD_PARTY_NOTICES.md) の生成
+- `tools/build_release.sh` Release 資産 (wheel / requirements.lock / THIRD_PARTY_NOTICES.md / release-inputs.txt / SHA256SUMS) の生成
 - `tools/generate_third_party_notices.py` 依存パッケージのライセンス一覧の生成
 
 ## ライセンス
